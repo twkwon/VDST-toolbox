@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { DpSstOptions } from './constraints/dpSst'
 import type { OutputId } from './spec'
-import type { Timing } from './timing'
+import { resolveTiming, type Timing } from './timing'
 import { verify, type VerifyResult } from './verify'
 
 function timing(hActive: number, vActive: number, hTotal: number, vTotal: number, fps: number): Timing {
@@ -35,9 +35,9 @@ describe('LVDS', () => {
     expect(result).toMatchObject({ pass: true })
   })
 
-  it('D3 Single LVDS 2560x1080@60 CVT-RB exceeds (5.196 > 4.48 Gbps)', () => {
-    const result = run('d3', 'lvdsSingle', timing(2560, 1080, 2720, 1137, 60))
-    expect(constraint(result, 'LVDS 대역폭').actual).toBeCloseTo(5.1956e9, -6)
+  it('D3 Single LVDS 2560x1080@60 CVT-RB v1 exceeds (5.077 > 4.48 Gbps)', () => {
+    const result = run('d3', 'lvdsSingle', timing(2560, 1080, 2720, 1111, 60))
+    expect(constraint(result, 'LVDS 대역폭').actual).toBeCloseTo(5.0768e9, -6)
     expect(failedNames(result)).toEqual(['LVDS 대역폭'])
   })
 
@@ -55,10 +55,16 @@ describe('DP SST', () => {
     expect(result).toMatchObject({ pass: true })
   })
 
-  it('D5 3840x2160@100 fits (23.76 <= 25.92 Gbps) — catches double-applied 8b/10b', () => {
-    const result = run('d5', 'dp', CTA_2160P(100), { dp: HBR3_X4 })
+  it('direct 4400x2250@100 fits (23.76 <= 25.92 Gbps) — catches double-applied 8b/10b', () => {
+    const result = run('d5', 'dp', timing(3840, 2160, 4400, 2250, 100), { dp: HBR3_X4 })
     expect(constraint(result, 'DP SST 대역폭').actual).toBeCloseTo(23.76e9, -3)
     expect(result).toMatchObject({ pass: true })
+  })
+
+  it('CEA-861 3840x2160@100 (VIC 117, 1188 MHz) exceeds HBR3 x4 without DSC', () => {
+    const { timing: vic117 } = resolveTiming({ hActive: 3840, vActive: 2160, fps: 100 }, 'cvtRbV2')
+    const result = run('d5', 'dp', vic117, { dp: HBR3_X4 })
+    expect(failedNames(result)).toEqual(['DP SST 대역폭'])
   })
 
   it('D5 3840x2160@120 exceeds (28.512 > 25.92 Gbps)', () => {
