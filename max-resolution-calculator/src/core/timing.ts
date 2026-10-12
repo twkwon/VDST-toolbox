@@ -12,6 +12,8 @@ export type ActiveMode = { hActive: number; vActive: number; fps: number }
 
 export type FallbackTimingMethod = 'cvtRbV2' | 'wikiCustom'
 
+export const DEFAULT_FALLBACK_TIMING: FallbackTimingMethod = 'wikiCustom'
+
 export type ResolvedTiming = { timing: Timing; source: string }
 
 export function pixelClockHz(timing: Timing): number {
