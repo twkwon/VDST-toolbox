@@ -1,51 +1,24 @@
 import { useState } from 'react'
-import type { DpSstOptions } from '../core/constraints/dpSst'
-import { DP_LANE_COUNTS, DP_LINK_RATES, type DpLaneCount, type DpLinkRate, type OutputId } from '../core/spec'
-import {
-  DEFAULT_FALLBACK_TIMING,
-  resolveTiming,
-  type FallbackTimingMethod,
-  type ResolvedTiming,
-} from '../core/timing'
+import { resolveTiming, type ResolvedTiming } from '../core/timing'
 import { verify } from '../core/verify'
-import { CHIPSETS } from '../data/chipsets'
 import { CEA861_MODES } from '../data/timings'
-import { FALLBACK_LABELS, OUTPUT_LABELS } from './labels'
+import { parsePositive, parsePositiveInt } from './form'
 import { ResultPanel } from './ResultPanel'
+import { dpOptionsFor, type Settings } from './settings'
+import { FallbackSelect, OptionsFieldset, TargetFieldset } from './SettingsFields'
 
-const DEFAULT_DP: DpSstOptions = { linkRate: 'HBR3', lanes: 4, fec: false, ssc: false }
-
-function parsePositiveInt(text: string): number | undefined {
-  const n = Number(text)
-  return Number.isInteger(n) && n > 0 ? n : undefined
+type Props = {
+  settings: Settings
+  onSettingsChange: (settings: Settings) => void
 }
 
-function parsePositive(text: string): number | undefined {
-  const n = Number(text)
-  return Number.isFinite(n) && n > 0 ? n : undefined
-}
-
-function outputsOf(chipsetId: string): OutputId[] {
-  const chipset = CHIPSETS.find((c) => c.id === chipsetId)
-  return chipset ? (Object.keys(chipset.outputs) as OutputId[]) : []
-}
-
-export function VerifyPage() {
-  const [chipsetId, setChipsetId] = useState(CHIPSETS[0].id)
-  const [output, setOutput] = useState<OutputId>(outputsOf(CHIPSETS[0].id)[0])
+export function VerifyPage({ settings, onSettingsChange }: Props) {
   const [widthText, setWidthText] = useState('1920')
   const [heightText, setHeightText] = useState('1080')
   const [fpsText, setFpsText] = useState('60')
-  const [fallback, setFallback] = useState<FallbackTimingMethod>(DEFAULT_FALLBACK_TIMING)
   const [manual, setManual] = useState(false)
   const [hTotalText, setHTotalText] = useState('')
   const [vTotalText, setVTotalText] = useState('')
-  const [scaler, setScaler] = useState(false)
-  const [dp, setDp] = useState<DpSstOptions>(DEFAULT_DP)
-
-  const chipset = CHIPSETS.find((c) => c.id === chipsetId)!
-  const outputs = outputsOf(chipsetId)
-  const dpSpec = chipset.outputs.dp?.kind === 'dp' ? chipset.outputs.dp : undefined
 
   const width = parsePositiveInt(widthText)
   const height = parsePositiveInt(heightText)
@@ -56,7 +29,7 @@ export function VerifyPage() {
   if (!fps) errors.push('fps는 0보다 커야 합니다.')
 
   const resolved: ResolvedTiming | undefined =
-    width && height && fps ? resolveTiming({ hActive: width, vActive: height, fps }, fallback) : undefined
+    width && height && fps ? resolveTiming({ hActive: width, vActive: height, fps }, settings.fallback) : undefined
 
   let timing = resolved?.timing
   let timingSource = resolved?.source ?? ''
@@ -71,14 +44,14 @@ export function VerifyPage() {
 
   const result =
     timing && errors.length === 0
-      ? verify({ chipsetId, output, timing, scaler, dp: output === 'dp' ? dp : undefined })
+      ? verify({
+          chipsetId: settings.chipsetId,
+          output: settings.output,
+          timing,
+          scaler: settings.scaler,
+          dp: dpOptionsFor(settings),
+        })
       : undefined
-
-  function selectChipset(id: string) {
-    setChipsetId(id)
-    const next = outputsOf(id)
-    if (!next.includes(output)) setOutput(next[0])
-  }
 
   function selectPreset(index: string) {
     const mode = CEA861_MODES[Number(index)]
@@ -96,35 +69,10 @@ export function VerifyPage() {
     }
   }
 
-  const linkRates = dpSpec ? DP_LINK_RATES.slice(0, DP_LINK_RATES.indexOf(dpSpec.maxLinkRate) + 1) : []
-  const laneCounts = dpSpec ? DP_LANE_COUNTS.filter((n) => n <= dpSpec.maxLanes) : []
-
   return (
-    <div className="verify">
+    <div className="page">
       <form className="inputs" onSubmit={(e) => e.preventDefault()}>
-        <fieldset>
-          <legend>대상</legend>
-          <label>
-            칩셋
-            <select value={chipsetId} onChange={(e) => selectChipset(e.target.value)}>
-              {CHIPSETS.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            출력
-            <select value={output} onChange={(e) => setOutput(e.target.value as OutputId)}>
-              {outputs.map((o) => (
-                <option key={o} value={o}>
-                  {OUTPUT_LABELS[o]}
-                </option>
-              ))}
-            </select>
-          </label>
-        </fieldset>
+        <TargetFieldset settings={settings} onChange={onSettingsChange} />
 
         <fieldset>
           <legend>해상도</legend>
@@ -157,20 +105,7 @@ export function VerifyPage() {
 
         <fieldset>
           <legend>타이밍</legend>
-          <label>
-            CEA-861에 없을 때 계산 방식
-            <select
-              value={fallback}
-              disabled={manual}
-              onChange={(e) => setFallback(e.target.value as FallbackTimingMethod)}
-            >
-              {(Object.keys(FALLBACK_LABELS) as FallbackTimingMethod[]).map((m) => (
-                <option key={m} value={m}>
-                  {FALLBACK_LABELS[m]}
-                </option>
-              ))}
-            </select>
-          </label>
+          <FallbackSelect settings={settings} onChange={onSettingsChange} disabled={manual} />
           <label className="check">
             <input type="checkbox" checked={manual} onChange={(e) => toggleManual(e.target.checked)} />
             Htotal / Vtotal 직접 입력
@@ -189,53 +124,7 @@ export function VerifyPage() {
           )}
         </fieldset>
 
-        <fieldset>
-          <legend>옵션</legend>
-          <label className="check">
-            <input type="checkbox" checked={scaler} onChange={(e) => setScaler(e.target.checked)} />
-            Scaler 사용 (출력 Width ≤ 4088 가정)
-          </label>
-          {output === 'dp' && dpSpec && (
-            <>
-              <div className="row">
-                <label>
-                  Link Rate
-                  <select
-                    value={dp.linkRate}
-                    onChange={(e) => setDp({ ...dp, linkRate: e.target.value as DpLinkRate })}
-                  >
-                    {linkRates.map((r) => (
-                      <option key={r} value={r}>
-                        {r}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Lane
-                  <select
-                    value={dp.lanes}
-                    onChange={(e) => setDp({ ...dp, lanes: Number(e.target.value) as DpLaneCount })}
-                  >
-                    {laneCounts.map((n) => (
-                      <option key={n} value={n}>
-                        {n}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              <label className="check">
-                <input type="checkbox" checked={dp.fec} onChange={(e) => setDp({ ...dp, fec: e.target.checked })} />
-                FEC
-              </label>
-              <label className="check">
-                <input type="checkbox" checked={dp.ssc} onChange={(e) => setDp({ ...dp, ssc: e.target.checked })} />
-                SSC
-              </label>
-            </>
-          )}
-        </fieldset>
+        <OptionsFieldset settings={settings} onChange={onSettingsChange} />
       </form>
 
       <section className="output">

@@ -1,4 +1,4 @@
-import type { ConstraintResult } from '../core/constraints/result'
+import { tightestConstraint, type ConstraintResult } from '../core/constraints/result'
 import { pixelClockHz, type Timing } from '../core/timing'
 import type { VerifyResult } from '../core/verify'
 import { formatMargin, formatMHz, formatValue } from './format'
@@ -14,7 +14,7 @@ export function ResultPanel({ result, timing, timingSource }: Props) {
     return <div className="verdict verdict-unsupported">이 칩셋은 선택한 출력을 지원하지 않습니다.</div>
   }
 
-  const tightest = result.constraints.reduce((a, b) => (b.margin < a.margin ? b : a))
+  const tightest = tightestConstraint(result.constraints)
 
   return (
     <div className="result">
