@@ -7,7 +7,7 @@ export type Cea861Mode = {
   fps: number
 }
 
-export const CEA861_SOURCE = 'CTA-861 VIC 표'
+export const CEA861_SOURCE = 'CTA-861'
 
 export const CEA861_MODES: Cea861Mode[] = [
   { vic: 1, hActive: 640, vActive: 480, hTotal: 800, vTotal: 525, fps: 60 },

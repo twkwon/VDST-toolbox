@@ -28,9 +28,8 @@ export function dpMaxPayloadBps(options: DpSstOptions): number {
 }
 
 export function dpSstConstraints(timing: Timing, spec: DpSpec, options: DpSstOptions): ConstraintResult[] {
-  return [
-    atMost('DP Link Rate', DP_LINK_RATE_MBPS[options.linkRate], DP_LINK_RATE_MBPS[spec.maxLinkRate], 'Mbps/lane'),
-    atMost('DP Lane 수', options.lanes, spec.maxLanes, 'lanes'),
-    atMost('DP SST 대역폭', pixelClockHz(timing) * BPP, dpMaxPayloadBps(options), 'bps'),
-  ]
+  if (DP_LINK_RATE_MBPS[options.linkRate] > DP_LINK_RATE_MBPS[spec.maxLinkRate] || options.lanes > spec.maxLanes) {
+    throw new Error(`DP link ${options.linkRate} x${options.lanes} exceeds chipset maximum`)
+  }
+  return [atMost('DP SST 대역폭', pixelClockHz(timing) * BPP, dpMaxPayloadBps(options), 'bps')]
 }

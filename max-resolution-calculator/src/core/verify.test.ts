@@ -95,6 +95,10 @@ describe('DP SST', () => {
   it('requires link options', () => {
     expect(() => run('d5', 'dp', CTA_2160P(60))).toThrow()
   })
+
+  it('rejects a link above the chipset maximum as invalid input', () => {
+    expect(() => run('d5', 'dp', CTA_2160P(60), { dp: { ...HBR3_X4, lanes: 8 as 4 } })).toThrow()
+  })
 })
 
 describe('DSI', () => {

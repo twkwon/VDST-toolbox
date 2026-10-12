@@ -61,6 +61,6 @@ export function resolveTiming(mode: ActiveMode, fallback: FallbackTimingMethod):
   }
   return {
     timing: wikiCustomTiming(mode),
-    source: `위키 Custom (H blank ${WIKI_CUSTOM_BLANKING.hBlank} px, V blank ${WIKI_CUSTOM_BLANKING.vBlank} lines)`,
+    source: `위키 Custom (H +${WIKI_CUSTOM_BLANKING.hBlank}px, V +${WIKI_CUSTOM_BLANKING.vBlank}라인)`,
   }
 }

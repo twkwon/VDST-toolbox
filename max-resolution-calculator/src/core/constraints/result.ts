@@ -1,6 +1,6 @@
 import { SPEC_SOURCE } from '../../data/chipsets'
 
-export type ConstraintUnit = 'bps' | 'px' | 'pixels' | 'fps' | 'Mbps/lane' | 'lanes'
+export type ConstraintUnit = 'bps' | 'px' | 'pixels' | 'fps'
 
 export type ConstraintResult = {
   name: string
