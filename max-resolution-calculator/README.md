@@ -24,6 +24,13 @@ npm run dev
 | `npm run lint` | 린트 (oxlint) |
 | `npm run build` | 타입 검사 + 배포용 빌드 (`dist/`) |
 
+## 배포
+
+검증 기간에는 GitHub Pages로 배포하고, 완료 후 사내 서버로 이전합니다.
+
+- **GitHub Pages:** `main`에 push하면 `.github/workflows/deploy-pages.yml`이 테스트 → 빌드 → 배포를 자동으로 실행합니다. 테스트가 실패하면 배포하지 않습니다.
+- **사내 서버:** `npm run build`로 만든 `dist/` 폴더를 정적 파일로 그대로 올리면 됩니다. 상대 경로로 빌드하므로 서버의 어느 경로에 두어도 동작합니다.
+
 ## 판정 기준
 
 스펙 출처는 Confluence 최대 출력 해상도 Calculator 위키 **v22**입니다.
