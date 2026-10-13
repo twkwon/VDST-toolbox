@@ -2,7 +2,7 @@ import { CEA861_MODES } from './timings'
 
 export type Resolution = { width: number; height: number }
 
-// 탐색 후보에 추가할 일반 패널 해상도. 담당자 확인 전 잠정 목록 (docs/decisions-for-confirmation.md 2-8).
+// 탐색 후보에 추가할 일반 패널 해상도. 담당자 확인 전 잠정 목록.
 const PANEL_RESOLUTIONS: Resolution[] = [
   { width: 800, height: 480 },
   { width: 1024, height: 600 },

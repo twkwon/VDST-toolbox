@@ -91,7 +91,7 @@ export function ExplorePage({ settings, onSettingsChange }: Props) {
               </tbody>
             </table>
             <p className="source-note">
-              후보 목록: CTA-861 표의 해상도 + 일반 패널 해상도 (잠정, docs/decisions-for-confirmation.md 2-8)
+              후보 목록: CTA-861 표의 해상도 + 일반 패널 해상도 (담당자 확인 전 잠정 목록)
             </p>
           </>
         )}

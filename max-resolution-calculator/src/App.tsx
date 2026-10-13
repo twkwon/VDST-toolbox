@@ -20,7 +20,7 @@ function App() {
       <header>
         <h1>최대 출력 해상도 Calculator</h1>
         <p className="provisional">
-          잠정 기준: {SPEC_SOURCE} + 담당자 미확인 가정 포함 (docs/decisions-for-confirmation.md)
+          잠정 기준: {SPEC_SOURCE} + 담당자 미확인 가정 포함
         </p>
         <nav className="tabs">
           {TABS.map((t) => (

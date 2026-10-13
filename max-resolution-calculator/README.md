@@ -46,7 +46,7 @@ npm run dev
 
 `Pixel Clock = Htotal × Vtotal × fps`이며, Htotal/Vtotal은 CTA-861 표 → (없으면) 위키 Custom(H +80px, V +6라인) 또는 CVT-RB v2 → 직접 입력 순으로 정합니다.
 
-위키에 명시되지 않아 개발 측이 정한 가정이 포함되어 있습니다. 담당자 확인 전까지 결과는 **잠정**이며, 확인 대상은 `../docs/decisions-for-confirmation.md`에 정리되어 있습니다.
+위키에 명시되지 않아 개발 측이 정한 가정이 포함되어 있습니다. 담당자 확인 전까지 결과는 **잠정**입니다.
 
 ## 1차 범위 밖
 
@@ -61,9 +61,4 @@ src/
   ui/         화면 컴포넌트
 ```
 
-관련 문서는 저장소 루트의 `docs/`에 있습니다.
-
-- `project-plan.md`: 결정 사항, 아키텍처, 마일스톤
-- `decisions-for-confirmation.md`: 담당자 컨펌 요청
-- `wiki-review-max-output-resolution-calculator.md`: 위키 검토 이력
-- `display-interface-glossary.md`: 용어집
+계획서, 담당자 컨펌 요청, 위키 검토 이력, 용어집 같은 사내 문서는 공개 저장소에 포함하지 않고, 작업 PC의 `docs/` 폴더에서 별도 로컬 저장소로 관리합니다.
