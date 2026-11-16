@@ -4,12 +4,18 @@ export function formatValue(value: number, unit: ConstraintUnit): string {
   switch (unit) {
     case 'bps':
       return `${(value / 1e9).toFixed(3)} Gbps`
+    case 'hz':
+      return `${(value / 1e6).toFixed(3)} MHz`
     case 'px':
       return `${value} px`
     case 'pixels':
       return `${value.toLocaleString('en-US')} 픽셀`
     case 'fps':
       return `${value} fps`
+    case 'slots':
+      return `${value} slots`
+    case 'pbn':
+      return `${value} PBN`
   }
 }
 

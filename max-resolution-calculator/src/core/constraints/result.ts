@@ -1,6 +1,12 @@
 import { SPEC_SOURCE } from '../../data/chipsets'
 
-export type ConstraintUnit = 'bps' | 'px' | 'pixels' | 'fps'
+export type ConstraintUnit = 'bps' | 'px' | 'pixels' | 'fps' | 'hz' | 'slots' | 'pbn'
+
+export type ConstraintFormula = {
+  expression: string
+  actualSubstitution: string
+  limitSubstitution: string
+}
 
 export type ConstraintResult = {
   name: string
@@ -10,6 +16,7 @@ export type ConstraintResult = {
   unit: ConstraintUnit
   margin: number
   source: string
+  formula?: ConstraintFormula
 }
 
 // 한계값이 0.8 같은 소수 계수의 곱이라 부동소수 오차로 경계값(같거나 작으면 가능)이 뒤집히지 않게 한다.
@@ -25,6 +32,7 @@ export function atMost(
   limit: number,
   unit: ConstraintUnit,
   source: string = SPEC_SOURCE,
+  formula?: ConstraintFormula,
 ): ConstraintResult {
   return {
     name,
@@ -34,5 +42,6 @@ export function atMost(
     unit,
     margin: (limit - actual) / limit,
     source,
+    ...(formula ? { formula } : {}),
   }
 }

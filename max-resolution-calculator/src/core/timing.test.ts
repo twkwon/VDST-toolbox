@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { cvtRbV2Timing, findCea861, pixelClockHz, resolveTiming, wikiCustomTiming } from './timing'
+import {
+  blankFactor20Timing,
+  cvtRbV2Timing,
+  findCea861,
+  pixelClockHz,
+  resolveTiming,
+  wikiCustomTiming,
+} from './timing'
 
 describe('CVT-RB v2', () => {
   it('1920x1080@60 → 2000 x 1111, 133.32 MHz', () => {
@@ -33,11 +40,26 @@ describe('wiki Custom blanking', () => {
   })
 })
 
+describe('Blank Factor 20% (manual 10.1.3 Table 10.7)', () => {
+  it('multiplies active pixel rate by 1.2', () => {
+    const t = blankFactor20Timing({ hActive: 1920, vActive: 1080, fps: 60 })
+    expect(t).toMatchObject({ hTotal: 2304, vTotal: 1080 })
+    expect(pixelClockHz(t)).toBeCloseTo(1920 * 1080 * 60 * 1.2, -2)
+  })
+})
+
 describe('resolveTiming', () => {
   it('prefers CEA-861: 1920x1080@60 is VIC 16', () => {
     const r = resolveTiming({ hActive: 1920, vActive: 1080, fps: 60 }, 'cvtRbV2')
     expect(r.timing).toMatchObject({ hTotal: 2200, vTotal: 1125 })
     expect(r.source).toContain('VIC 16')
+  })
+
+  it('matches fractional 1/1.001 fps (59.94, 119.88) to CEA-861 Htotal/Vtotal while keeping actual fps', () => {
+    const r = resolveTiming({ hActive: 3840, vActive: 2160, fps: 119.88 }, 'wikiCustom')
+    expect(r.source).toContain('VIC 118')
+    expect(r.timing).toMatchObject({ hTotal: 4400, vTotal: 2250, fps: 119.88 })
+    expect(pixelClockHz(r.timing)).toBeCloseTo(4400 * 2250 * 119.88, -2)
   })
 
   it('3840x2160@100 is VIC 117 with 50 Hz-family H total 5280 (1188 MHz)', () => {
@@ -51,5 +73,6 @@ describe('resolveTiming', () => {
     expect(findCea861(mode)).toBeUndefined()
     expect(resolveTiming(mode, 'cvtRbV2')).toMatchObject({ source: 'CVT-RB v2', timing: { hTotal: 2000, vTotal: 741 } })
     expect(resolveTiming(mode, 'wikiCustom').timing).toMatchObject({ hTotal: 2000, vTotal: 726 })
+    expect(resolveTiming(mode, 'blankFactor20').timing).toMatchObject({ hTotal: 2304, vTotal: 720 })
   })
 })

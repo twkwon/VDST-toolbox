@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import type { DpSstOptions } from './constraints/dpSst'
-import type { OutputId } from './spec'
+import { dpMstStreamPbn, dpMstTimeSlots } from './constraints/dpMst'
+import { dpLinkSymbolSlots, type DpSstOptions } from './constraints/dpSst'
+import type { DsiOptions } from './constraints/dsi'
+import type { HdmiOptions } from './constraints/hdmi'
+import type { OutputId, ScalerInput } from './spec'
 import { resolveTiming, type Timing } from './timing'
 import { verify, type VerifyResult } from './verify'
 
@@ -12,8 +15,21 @@ const CTA_1080P = (fps: number) => timing(1920, 1080, 2200, 1125, fps)
 const CTA_2160P = (fps: number) => timing(3840, 2160, 4400, 2250, fps)
 const HBR3_X4: DpSstOptions = { linkRate: 'HBR3', lanes: 4, fec: false, ssc: false }
 
-function run(chipsetId: string, output: OutputId, t: Timing, extra: { scaler?: boolean; dp?: DpSstOptions } = {}) {
-  return verify({ chipsetId, output, timing: t, scaler: extra.scaler ?? false, dp: extra.dp })
+function run(
+  chipsetId: string,
+  output: OutputId,
+  t: Timing,
+  extra: { scaler?: ScalerInput; dp?: DpSstOptions; dsi?: DsiOptions; hdmi?: HdmiOptions } = {},
+) {
+  return verify({
+    chipsetId,
+    output,
+    timing: t,
+    scaler: extra.scaler ?? false,
+    dp: extra.dp,
+    dsi: extra.dsi,
+    hdmi: extra.hdmi,
+  })
 }
 
 function constraint(result: VerifyResult, name: string) {
@@ -41,14 +57,19 @@ describe('LVDS', () => {
     expect(failedNames(result)).toEqual(['LVDS 대역폭'])
   })
 
-  it('D3 Dual LVDS 2560x1440@60 CVT-RB fits (6.768 <= 8.96 Gbps)', () => {
+  it('D3 Dual LVDS 2560x1440@60 CVT-RB fits (6.768 <= 8.96 Gbps) and checks Splitter Half-Width', () => {
     const result = run('d3', 'lvdsDual', timing(2560, 1440, 2720, 1481, 60))
     expect(constraint(result, 'LVDS 대역폭').actual).toBeCloseTo(6.7678e9, -6)
+    expect(constraint(result, 'Dual LVDS Splitter Half-Width')).toMatchObject({
+      actual: 1280,
+      limit: 4095,
+      pass: true,
+    })
     expect(result).toMatchObject({ pass: true })
   })
 })
 
-describe('DP SST', () => {
+describe('DP SST & DSC & Link Symbol Slots', () => {
   it('D5 3840x2160@60 fits (14.256 <= 25.92 Gbps)', () => {
     const result = run('d5', 'dp', CTA_2160P(60), { dp: HBR3_X4 })
     expect(constraint(result, 'DP SST 대역폭').limit).toBeCloseTo(25.92e9, -3)
@@ -67,9 +88,16 @@ describe('DP SST', () => {
     expect(failedNames(result)).toEqual(['DP SST 대역폭'])
   })
 
-  it('D5 3840x2160@120 exceeds (28.512 > 25.92 Gbps)', () => {
+  it('D5 3840x2160@120 exceeds without DSC (28.512 > 25.92 Gbps), but fits with DSC 12bpp + mandatory FEC', () => {
     const result = run('d5', 'dp', CTA_2160P(120), { dp: HBR3_X4 })
     expect(failedNames(result)).toEqual(['DP SST 대역폭'])
+
+    const withDsc = run('d5', 'dp', CTA_2160P(120), {
+      dp: { ...HBR3_X4, dsc: true, bppCompressed: 12 },
+    })
+    expect(constraint(withDsc, 'DP SST 대역폭').actual).toBeCloseTo(14.256e9, -3)
+    expect(constraint(withDsc, 'DP SST 대역폭').limit).toBeCloseTo(25.29792e9, -3)
+    expect(withDsc).toMatchObject({ pass: true })
   })
 
   it('FEC factor decides 4400x2250@107 (25.423 Gbps between 25.298 and 25.92)', () => {
@@ -92,6 +120,17 @@ describe('DP SST', () => {
     expect(failedNames(result)).toEqual(['DP SST 대역폭'])
   })
 
+  it('matches Table 10.4 TU link symbol slot counts (manual 10.1.1)', () => {
+    expect(dpLinkSymbolSlots(CTA_2160P(60), HBR3_X4)).toMatchObject({ exact: 35.2, slots: 36 })
+    expect(dpLinkSymbolSlots(CTA_2160P(30), HBR3_X4)).toMatchObject({ exact: 17.6, slots: 18 })
+    expect(dpLinkSymbolSlots(CTA_1080P(60), HBR3_X4)).toMatchObject({ exact: 8.8, slots: 9 })
+    expect(dpLinkSymbolSlots(timing(1280, 720, 1650, 750, 60), HBR3_X4)).toMatchObject({
+      exact: 4.4,
+      slots: 5,
+    })
+    expect(dpLinkSymbolSlots(timing(640, 480, 800, 525, 60), HBR3_X4).slots).toBe(2)
+  })
+
   it('requires link options', () => {
     expect(() => run('d5', 'dp', CTA_2160P(60))).toThrow()
   })
@@ -101,7 +140,21 @@ describe('DP SST', () => {
   })
 })
 
-describe('DSI', () => {
+describe('DP MST (Table 2~4 & DB 452788685)', () => {
+  it('computes PBN and Time Slots for 4K60 and FHD60 on HBR3 x4', () => {
+    const mstOpts: DpSstOptions = { ...HBR3_X4, mode: 'mst' }
+    expect(dpMstStreamPbn(CTA_2160P(60), mstOpts)).toBe(2125)
+    expect(dpMstTimeSlots(CTA_2160P(60), mstOpts)).toBe(36)
+    expect(dpMstStreamPbn(CTA_1080P(60), mstOpts)).toBe(532)
+    expect(dpMstTimeSlots(CTA_1080P(60), mstOpts)).toBe(9)
+
+    const result = run('d5', 'dp', CTA_2160P(60), { dp: mstOpts })
+    expect(result).toMatchObject({ pass: true })
+    expect(constraint(result, 'DP MST Time Slot')).toMatchObject({ actual: 36, limit: 63, pass: true })
+  })
+})
+
+describe('DSI (Direct & EVB SerDes 10.1.2)', () => {
   it('D5 DSI 1920x1080@60 fits (3.920 <= 10 Gbps)', () => {
     const result = run('d5', 'dsi', CTA_1080P(60))
     expect(constraint(result, 'DSI 대역폭').actual).toBeCloseTo(3.9204e9, -6)
@@ -112,9 +165,36 @@ describe('DSI', () => {
     const result = run('d5', 'dsi', timing(4200, 1000, 4280, 1030, 30))
     expect(failedNames(result)).toEqual(['DSI 라인버퍼 Width'])
   })
+
+  it('Table 10.5: 3840x1080@60 fits direct DSI (10 Gbps) but fails EVB SerDes (4.8 Gbps); 3840x1080@30 fits SerDes', () => {
+    const { timing: t60 } = resolveTiming({ hActive: 3840, vActive: 1080, fps: 60 }, 'wikiCustom')
+    expect(run('d5', 'dsi', t60, { dsi: { serdesCap: false } })).toMatchObject({ pass: true })
+    const serdes60 = run('d5', 'dsi', t60, { dsi: { serdesCap: true } })
+    expect(failedNames(serdes60)).toEqual(['DSI EVB SerDes 대역폭'])
+
+    const { timing: t30 } = resolveTiming({ hActive: 3840, vActive: 1080, fps: 30 }, 'wikiCustom')
+    expect(run('d5', 'dsi', t30, { dsi: { serdesCap: true } })).toMatchObject({ pass: true })
+  })
 })
 
-describe('VIOC DISP / Scaler', () => {
+describe('HDMI 2.0 (manual 10.1.4 Table 10.8)', () => {
+  it('supports 3840x2160@60 on D+ (TCC803x) (594 MHz <= 600 MHz, 17.82 Gbps <= 18.0 Gbps)', () => {
+    const result = run('d-plus', 'hdmi', CTA_2160P(60))
+    expect(constraint(result, 'HDMI TMDS Pixel Clock').actual).toBe(594e6)
+    expect(constraint(result, 'HDMI TMDS 대역폭').actual).toBeCloseTo(17.82e9, -3)
+    expect(result).toMatchObject({ pass: true })
+  })
+
+  it('rejects 3840x2160@120 in RGB/YCbCr444, but allows in YCbCr 4:2:0 8-bit on D+ (TCC803x)', () => {
+    const rgb = run('d-plus', 'hdmi', CTA_2160P(120))
+    expect(failedNames(rgb)).toEqual(['HDMI TMDS Pixel Clock', 'HDMI TMDS 대역폭'])
+
+    const yuv420 = run('d-plus', 'hdmi', CTA_2160P(120), { hdmi: { format: 'yuv420_8bpc' } })
+    expect(yuv420).toMatchObject({ pass: true })
+  })
+})
+
+describe('VIOC DISP / Scaler (2K & 4K)', () => {
   const WIDE = timing(8190, 1080, 8270, 1111, 30)
 
   it('8190x1080 is allowed by DISP pixel total', () => {
@@ -124,6 +204,13 @@ describe('VIOC DISP / Scaler', () => {
   it('8190x1080 fails when Scaler (4K assumption) is in the path', () => {
     const result = run('d5', 'dp', WIDE, { dp: HBR3_X4, scaler: true })
     expect(failedNames(result)).toEqual(['Scaler 출력 Width'])
+  })
+
+  it('2560x1440@60 passes with 4K Scaler (<= 4088) but fails with 2K Scaler (<= 2048)', () => {
+    const qhd = timing(2560, 1440, 2720, 1481, 60)
+    expect(run('d3', 'lvdsDual', qhd, { scaler: '4k' })).toMatchObject({ pass: true })
+    const res2k = run('d3', 'lvdsDual', qhd, { scaler: '2k' })
+    expect(failedNames(res2k)).toEqual(['Scaler 출력 Width'])
   })
 
   it('8190x1081 exceeds DISP pixel total', () => {
@@ -137,7 +224,7 @@ describe('VIOC DISP / Scaler', () => {
   })
 })
 
-describe('D+ Lite FHD cap', () => {
+describe('D+ Lite FHD cap + LVDS bandwidth', () => {
   it('1920x1080@60 is allowed', () => {
     expect(run('d-plus-lite', 'lvdsSingle', CTA_1080P(60))).toMatchObject({ pass: true })
   })
@@ -146,11 +233,20 @@ describe('D+ Lite FHD cap', () => {
     const result = run('d-plus-lite', 'lvdsDual', timing(1920, 1200, 2080, 1235, 60))
     expect(failedNames(result)).toEqual(['칩셋 해상도 제약 Height'])
   })
+
+  it('1920x1080@60 with excessive blanking (2640x1125) fails Single LVDS bandwidth on D+ Lite', () => {
+    const result = run('d-plus-lite', 'lvdsSingle', timing(1920, 1080, 2640, 1125, 60))
+    expect(failedNames(result)).toEqual(['LVDS 대역폭'])
+  })
 })
 
 describe('unsupported outputs', () => {
-  it('D5 has no LVDS', () => {
+  it('D3, D5, D7, D9 have no HDMI; D5 has no LVDS', () => {
+    expect(run('d3', 'hdmi', CTA_2160P(60))).toEqual({ supported: false })
     expect(run('d5', 'lvdsSingle', CTA_1080P(60))).toEqual({ supported: false })
+    expect(run('d5', 'hdmi', CTA_2160P(60))).toEqual({ supported: false })
+    expect(run('d7', 'hdmi', CTA_2160P(60))).toEqual({ supported: false })
+    expect(run('d9', 'hdmi', CTA_2160P(60))).toEqual({ supported: false })
   })
 
   it('D3 Lite has no DP', () => {
