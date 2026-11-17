@@ -46,7 +46,13 @@ npm run dev
 
 ## 판정 기준 및 적용 수식
 
-스펙 출처는 최대 출력 해상도 Calculator 위키 **v22**, 출력 인터페이스별 최대 지원 해상도 매뉴얼 **10.1**, DisplayPort 출력조건별 대역폭 **DB v5**입니다.
+### 참고 사이트 및 스펙 출처
+- **배포 사이트 (GitHub Pages):** [https://twkwon.github.io/VDST-toolbox/](https://twkwon.github.io/VDST-toolbox/)
+- **외부 타이밍 계산기 참고:** [Video Timings Calculator (Tom Verbeure)](https://tomverbeure.github.io/video_timings_calculator) — CTA-861, CVT-RB v2 및 Custom Blanking(`custom_hblank=80&custom_vblank=6`) 대조
+- **사내 기준 스펙 문서 (Telechips Confluence):**
+  1. [최대 출력 해상도 Calculator](https://telechips.atlassian.net/wiki/spaces/SA23/pages/445939803/Calculator) (위키 **v22**)
+  2. [10.1 출력 인터페이스별 최대 지원 해상도](https://telechips.atlassian.net/wiki/spaces/SA23/pages/426641490/10.1) (매뉴얼 **TRM 10.1**)
+  3. [DisplayPort 출력조건별 대역폭](https://telechips.atlassian.net/wiki/spaces/SA23/database/452788685) (**DB v5**)
 
 | 구분 | 판정 부등식 및 제약 조건 |
 | --- | --- |
