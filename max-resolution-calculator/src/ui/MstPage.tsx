@@ -13,7 +13,7 @@ import { CHIPSETS } from '../data/chipsets'
 import { CEA861_MODES } from '../data/timings'
 import { parsePositive, parsePositiveInt } from './form'
 import { formatMargin, formatMHz, formatValue } from './format'
-import { SCALER_LABELS } from './labels'
+import { translateConstraintName, translateFormulaText, translateTimingSource, useI18n } from './i18n'
 import { FallbackSelect } from './SettingsFields'
 import type { Settings } from './settings'
 
@@ -37,6 +37,7 @@ const REFERENCE_4CH_STREAMS: StreamDraft[] = [
 ]
 
 export function MstPage({ settings, onSettingsChange }: Props) {
+  const { lang, t } = useI18n()
   const [streams, setStreams] = useState<StreamDraft[]>(REFERENCE_4CH_STREAMS)
 
   const dpChipsets = CHIPSETS.filter((c) => c.outputs.dp?.kind === 'dp' && c.outputs.dp.mst)
@@ -56,7 +57,7 @@ export function MstPage({ settings, onSettingsChange }: Props) {
     const h = parsePositiveInt(s.heightText)
     const fps = parsePositive(s.fpsText)
     if (!w || !h || !fps) {
-      errors.push(`Stream #${i + 1}: H_active, V_active, Frame Rate를 올바르게 입력하십시오.`)
+      errors.push(t.mstStreamError(i + 1))
       continue
     }
     const r = resolveTiming({ hActive: w, vActive: h, fps }, settings.fallback)
@@ -104,9 +105,9 @@ export function MstPage({ settings, onSettingsChange }: Props) {
     <div className="page">
       <form className="inputs" onSubmit={(e) => e.preventDefault()}>
         <fieldset className="control-group">
-          <legend>1. DP MST 물리 링크 구성 (Physical Link Config)</legend>
+          <legend>{t.mstLinkConfigLegend}</legend>
           <label>
-            대상 프로세서 (DP MST 지원 SoC)
+            {t.mstTargetSocLabel}
             <select
               value={activeChipset.id}
               onChange={(e) => onSettingsChange({ ...settings, chipsetId: e.target.value, output: 'dp' })}
@@ -121,7 +122,7 @@ export function MstPage({ settings, onSettingsChange }: Props) {
           {dpSpec && (
             <div className="row">
               <label>
-                Link Rate 등급
+                {t.linkRateGradeLabel}
                 <select value={dp.linkRate} onChange={(e) => setDp({ linkRate: e.target.value as DpLinkRate })}>
                   {DP_LINK_RATES.slice(0, DP_LINK_RATES.indexOf(dpSpec.maxLinkRate) + 1).map((r) => (
                     <option key={r} value={r}>
@@ -131,7 +132,7 @@ export function MstPage({ settings, onSettingsChange }: Props) {
                 </select>
               </label>
               <label>
-                구성 Lane 수
+                {t.laneCountLabel}
                 <select value={dp.lanes} onChange={(e) => setDp({ lanes: Number(e.target.value) as DpLaneCount })}>
                   {DP_LANE_COUNTS.filter((n) => n <= dpSpec.maxLanes).map((n) => (
                     <option key={n} value={n}>
@@ -143,14 +144,14 @@ export function MstPage({ settings, onSettingsChange }: Props) {
             </div>
           )}
           <label>
-            VIOC Scaler 파이프라인 구성
+            {t.scalerPipelineLabel}
             <select
               value={settings.scaler}
               onChange={(e) => onSettingsChange({ ...settings, scaler: e.target.value as ScalerMode })}
             >
-              {(Object.keys(SCALER_LABELS) as ScalerMode[]).map((mode) => (
+              {(Object.keys(t.scalerLabels) as ScalerMode[]).map((mode) => (
                 <option key={mode} value={mode}>
-                  {SCALER_LABELS[mode]}
+                  {t.scalerLabels[mode]}
                 </option>
               ))}
             </select>
@@ -163,7 +164,7 @@ export function MstPage({ settings, onSettingsChange }: Props) {
               disabled={Boolean(dp.dsc)}
               onChange={(e) => setDp({ fec: e.target.checked })}
             />
-            FEC 활성화 {dp.dsc ? '(DSC 필수 연동)' : '(MST + FEC 3% 오버헤드 적용)'}
+            {t.fecEnableLabel} {dp.dsc ? t.fecMandatoryDscSuffix : t.mstFecOverheadSuffix}
           </label>
           <label className="check">
             <input
@@ -171,18 +172,18 @@ export function MstPage({ settings, onSettingsChange }: Props) {
               checked={Boolean(dp.dsc)}
               onChange={(e) => setDp({ dsc: e.target.checked, fec: e.target.checked ? true : dp.fec })}
             />
-            DSC (Display Stream Compression) 압축 활성화
+            {t.dscEnableLabel}
           </label>
           {dp.dsc && (
             <label>
-              DSC 목표 압축 비트율 (bpp_compressed)
+              {t.dscTargetBppLabel}
               <select
                 value={dp.bppCompressed ?? 12}
                 onChange={(e) => setDp({ bppCompressed: Number(e.target.value) })}
               >
                 {[8, 9, 10, 12, 15, 16].map((bpp) => (
                   <option key={bpp} value={bpp}>
-                    {bpp} bpp (압축비 {(24 / bpp).toFixed(2)}:1)
+                    {bpp} bpp ({t.compressionRatio((24 / bpp).toFixed(2))})
                   </option>
                 ))}
               </select>
@@ -191,10 +192,10 @@ export function MstPage({ settings, onSettingsChange }: Props) {
         </fieldset>
 
         <fieldset className="control-group">
-          <legend>2. Virtual Channel 스트림 토폴로지 (최대 {MAX_MST_STREAMS}ch)</legend>
+          <legend>{t.mstTopologyLegend(MAX_MST_STREAMS)}</legend>
           <div className="btn-row">
             <button type="button" className="btn btn-primary" onClick={() => setStreams(REFERENCE_4CH_STREAMS)}>
-              TRM 10.1.1 레퍼런스 토폴로지 로드 (4K@60 × 1 + FHD@60 × 3)
+              {t.mstLoadReferenceBtn}
             </button>
             <button
               type="button"
@@ -202,7 +203,7 @@ export function MstPage({ settings, onSettingsChange }: Props) {
               disabled={streams.length >= MAX_MST_STREAMS}
               onClick={addStream}
             >
-              + Virtual Channel 스트림 추가 ({streams.length}/{MAX_MST_STREAMS})
+              {t.mstAddStreamBtn(streams.length, MAX_MST_STREAMS)}
             </button>
           </div>
 
@@ -212,14 +213,14 @@ export function MstPage({ settings, onSettingsChange }: Props) {
                 <strong>VC Stream #{idx + 1}</strong>
                 {streams.length > 1 && (
                   <button type="button" className="btn-small" onClick={() => removeStream(idx)}>
-                    스트림 제거
+                    {t.mstRemoveStreamBtn}
                   </button>
                 )}
               </div>
               <label>
-                CTA-861 표준 프리셋 적용
+                {t.mstPresetLabel}
                 <select value="" onChange={(e) => applyPreset(idx, e.target.value)}>
-                  <option value="">프리셋 선택…</option>
+                  <option value="">{t.mstPresetPlaceholder}</option>
                   {CEA861_MODES.map((m, i) => (
                     <option key={m.vic} value={i}>
                       {m.hActive}×{m.vActive} @ {m.fps}Hz (VIC {m.vic})
@@ -274,14 +275,15 @@ export function MstPage({ settings, onSettingsChange }: Props) {
               </div>
               <div className="verdict-body">
                 <strong>
-                  {result.pass
-                    ? `${result.streams.length}채널 DP MST 스트림 동시 출력이 가능합니다.`
-                    : '다중 스트림 합산 요구량이 DP MST 링크 또는 타임슬롯 용량을 초과했습니다.'}
+                  {result.pass ? t.mstVerdictPassTitle(result.streams.length) : t.mstVerdictFailTitle}
                 </strong>
                 <span>
-                  총 할당 Time Slot: {result.totalTimeSlots} / 63 slots · 총 TU 심볼 슬롯: {result.totalTuSymbolSlots}{' '}
-                  / 64 slots · 총 요구 대역폭: {(result.totalPayloadBps / 1e9).toFixed(3)} /{' '}
-                  {(result.maxPayloadBps / 1e9).toFixed(3)} Gbps
+                  {t.mstVerdictSummary(
+                    result.totalTimeSlots,
+                    result.totalTuSymbolSlots,
+                    (result.totalPayloadBps / 1e9).toFixed(3),
+                    (result.maxPayloadBps / 1e9).toFixed(3),
+                  )}
                 </span>
               </div>
             </div>
@@ -290,28 +292,28 @@ export function MstPage({ settings, onSettingsChange }: Props) {
               <div className="kpi-card">
                 <span className="kpi-label">TOTAL MST TIME SLOTS</span>
                 <strong className="kpi-value">{result.totalTimeSlots} / 63 slots</strong>
-                <span className="kpi-sub">1 MTP = 64 slots (헤더 1 slot 제외)</span>
+                <span className="kpi-sub">{t.mstKpiTimeSlotsSub}</span>
               </div>
               <div className="kpi-card">
                 <span className="kpi-label">TOTAL TU LINK SYMBOLS</span>
                 <strong className="kpi-value">{result.totalTuSymbolSlots} / 64 slots</strong>
-                <span className="kpi-sub">TRM 10.1.1 Table 10.4 기준</span>
+                <span className="kpi-sub">{t.mstKpiTuSymbolsSub}</span>
               </div>
               <div className="kpi-card">
                 <span className="kpi-label">TOTAL PAYLOAD BANDWIDTH</span>
                 <strong className="kpi-value">{(result.totalPayloadBps / 1e9).toFixed(3)} Gbps</strong>
-                <span className="kpi-sub">링크 한계 {(result.maxPayloadBps / 1e9).toFixed(3)} Gbps</span>
+                <span className="kpi-sub">{t.mstKpiPayloadSub((result.maxPayloadBps / 1e9).toFixed(3))}</span>
               </div>
               <div className="kpi-card">
                 <span className="kpi-label">TOTAL STREAM PBN</span>
                 <strong className="kpi-value">{result.totalPbn} PBN</strong>
-                <span className="kpi-sub">슬롯당 용량 {result.pbnPerSlot} PBN/slot (Table 2)</span>
+                <span className="kpi-sub">{t.mstKpiPbnSub(result.pbnPerSlot)}</span>
               </div>
             </div>
 
             <section className="panel-section">
               <div className="section-header">
-                <h3>1. 물리 링크 합산 제약 및 수식 풀이 (Aggregate Link Constraints &amp; Formulas)</h3>
+                <h3>{t.mstSection1Title}</h3>
                 <span className="section-tag">
                   {dp.linkRate} × {dp.lanes} Lanes ({result.pbnPerSlot} PBN/slot)
                 </span>
@@ -319,12 +321,12 @@ export function MstPage({ settings, onSettingsChange }: Props) {
               <table className="constraints">
                 <thead>
                   <tr>
-                    <th>합산 검증 항목</th>
-                    <th>합산 요구값 (Actual)</th>
-                    <th>링크 허용 한계 (Limit)</th>
-                    <th>점유율</th>
-                    <th>여유 마진</th>
-                    <th>판정</th>
+                    <th>{t.mstColAggregateItem}</th>
+                    <th>{t.mstColAggregateActual}</th>
+                    <th>{t.mstColLinkLimit}</th>
+                    <th>{t.mstColUtilization}</th>
+                    <th>{t.mstColMargin}</th>
+                    <th>{t.mstColVerdict}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -332,9 +334,9 @@ export function MstPage({ settings, onSettingsChange }: Props) {
                     const util = (c.actual / c.limit) * 100
                     return (
                       <tr key={c.name} className={c.pass ? undefined : 'row-fail'}>
-                        <td>{c.name}</td>
-                        <td>{formatValue(c.actual, c.unit)}</td>
-                        <td>{formatValue(c.limit, c.unit)}</td>
+                        <td>{translateConstraintName(c.name, lang)}</td>
+                        <td>{formatValue(c.actual, c.unit, lang)}</td>
+                        <td>{formatValue(c.limit, c.unit, lang)}</td>
                         <td className="util-cell">
                           <div className="table-util-wrap">
                             <div className="util-bar-track">
@@ -368,19 +370,19 @@ export function MstPage({ settings, onSettingsChange }: Props) {
                 {result.linkConstraints.map((c) => (
                   <div key={c.name} className={c.pass ? 'formula-card' : 'formula-card formula-card-fail'}>
                     <div className="formula-card-head">
-                      <strong>{c.name} 산출 풀이</strong>
+                      <strong>{t.mstFormulaCardTitle(translateConstraintName(c.name, lang))}</strong>
                       <span className="formula-result-pill">
-                        {formatValue(c.actual, c.unit)} ≤ {formatValue(c.limit, c.unit)}
+                        {formatValue(c.actual, c.unit, lang)} ≤ {formatValue(c.limit, c.unit, lang)}
                       </span>
                     </div>
                     {c.formula && (
                       <div className="formula-grid">
-                        <span className="formula-tag">판정 부등식</span>
-                        <code>{c.formula.expression}</code>
-                        <span className="formula-tag">합산값 대입</span>
-                        <code>{c.formula.actualSubstitution}</code>
-                        <span className="formula-tag">한계값 대입</span>
-                        <code>{c.formula.limitSubstitution}</code>
+                        <span className="formula-tag">{t.mstTagInequality}</span>
+                        <code>{translateFormulaText(c.formula.expression, lang)}</code>
+                        <span className="formula-tag">{t.mstTagSumSubstitution}</span>
+                        <code>{translateFormulaText(c.formula.actualSubstitution, lang)}</code>
+                        <span className="formula-tag">{t.mstTagLimitSubstitution}</span>
+                        <code>{translateFormulaText(c.formula.limitSubstitution, lang)}</code>
                       </div>
                     )}
                   </div>
@@ -390,20 +392,20 @@ export function MstPage({ settings, onSettingsChange }: Props) {
 
             <section className="panel-section">
               <div className="section-header">
-                <h3>2. Virtual Channel 스트림별 PBN · Time Slot · TU 심볼 상세 산출 (Per-Stream Breakdown)</h3>
-                <span className="section-tag">총 {result.streams.length}개 스트림</span>
+                <h3>{t.mstSection2Title}</h3>
+                <span className="section-tag">{t.mstSection2Tag(result.streams.length)}</span>
               </div>
               <table className="constraints explore">
                 <thead>
                   <tr>
-                    <th>VC 채널</th>
-                    <th>해상도 및 타이밍 규격</th>
-                    <th>Pixel Clock</th>
-                    <th>요구 대역폭</th>
-                    <th>할당 PBN</th>
-                    <th>MST Time Slot</th>
-                    <th>TU 심볼 (10.1.1)</th>
-                    <th>판정</th>
+                    <th>{t.mstColVcChannel}</th>
+                    <th>{t.mstColResTiming}</th>
+                    <th>{t.exploreColPixelClock}</th>
+                    <th>{t.mstColReqBandwidth}</th>
+                    <th>{t.mstColAllocPbn}</th>
+                    <th>{t.mstColMstSlot}</th>
+                    <th>{t.mstColTuSymbol}</th>
+                    <th>{t.mstColVerdict}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -413,7 +415,8 @@ export function MstPage({ settings, onSettingsChange }: Props) {
                         <strong>VC #{s.index}</strong>
                       </td>
                       <td>
-                        {s.timing.hActive}×{s.timing.vActive}@{s.timing.fps}Hz ({s.timingSource})
+                        {s.timing.hActive}×{s.timing.vActive}@{s.timing.fps}Hz (
+                        {translateTimingSource(s.timingSource, lang)})
                       </td>
                       <td>{formatMHz(s.pixelClockHz)}</td>
                       <td>{(s.payloadBps / 1e9).toFixed(3)} Gbps</td>
@@ -437,8 +440,14 @@ export function MstPage({ settings, onSettingsChange }: Props) {
                   <div key={s.index} className={s.pass ? 'formula-card' : 'formula-card formula-card-fail'}>
                     <div className="formula-card-head">
                       <strong>
-                        VC Stream #{s.index} ({s.timing.hActive}×{s.timing.vActive} @ {s.timing.fps}Hz, Total{' '}
-                        {s.timing.hTotal}×{s.timing.vTotal}) 수식 대입 풀이
+                        {t.mstStreamFormulaTitle(
+                          s.index,
+                          s.timing.hActive,
+                          s.timing.vActive,
+                          s.timing.fps,
+                          s.timing.hTotal,
+                          s.timing.vTotal,
+                        )}
                       </strong>
                       <span className="formula-result-pill">
                         {s.pbn} PBN · {s.timeSlots} Time Slots · {s.tuSymbolSlots} TU Symbols

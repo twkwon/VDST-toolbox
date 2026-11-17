@@ -4,6 +4,13 @@ import { tightestConstraint, type ConstraintResult } from '../core/constraints/r
 import { describeTimingDerivation, pixelClockHz, type Timing } from '../core/timing'
 import type { VerifyResult } from '../core/verify'
 import { formatMargin, formatMHz, formatValue } from './format'
+import {
+  translateConstraintName,
+  translateFormulaText,
+  translateTimingSource,
+  useI18n,
+  type LangCode,
+} from './i18n'
 
 type Props = {
   result: VerifyResult
@@ -13,13 +20,15 @@ type Props = {
 }
 
 export function ResultPanel({ result, timing, timingSource, dp }: Props) {
+  const { lang, t } = useI18n()
+
   if (!result.supported) {
     return (
       <div className="verdict-banner verdict-fail">
         <div className="verdict-badge badge-fail">UNSUPPORTED</div>
         <div>
-          <strong>선택한 SoC 아키텍처에서 해당 출력 인터페이스를 지원하지 않습니다.</strong>
-          <p>좌측 타깃 아키텍처 설정에서 지원되는 인터페이스 조합을 선택하십시오.</p>
+          <strong>{t.unsupportedTitle}</strong>
+          <p>{t.unsupportedDesc}</p>
         </div>
       </div>
     )
@@ -37,24 +46,32 @@ export function ResultPanel({ result, timing, timingSource, dp }: Props) {
   const mstPbnPerSlot = dp && dp.mode === 'mst' ? dpMstPbnPerSlot(dp.linkRate, dp.lanes) : undefined
   const mstSlots = dp && dp.mode === 'mst' ? dpMstTimeSlots(timing, dp) : undefined
   const peakUtilization = (tightest.actual / tightest.limit) * 100
+  const displayTimingSource = translateTimingSource(timingSource, lang)
 
   return (
     <div className="analysis-panel">
       <div className={result.pass ? 'verdict-banner verdict-pass' : 'verdict-banner verdict-fail'}>
         <div className={result.pass ? 'verdict-badge badge-pass' : 'verdict-badge badge-fail'}>
-          {result.pass ? 'COMPLIANT (적합)' : 'NON-COMPLIANT (부적합)'}
+          {result.pass ? t.verdictCompliant : t.verdictNonCompliant}
         </div>
         <div className="verdict-body">
           <strong>
             {timing.hActive}×{timing.vActive} @ {timing.fps}Hz —{' '}
-            {result.pass ? '모든 하드웨어 및 링크 대역폭 제약을 충족합니다.' : '하드웨어 또는 링크 대역폭 한계를 초과했습니다.'}
+            {result.pass ? t.verdictPassHeadline : t.verdictFailHeadline}
           </strong>
           <span>
             {result.pass
-              ? `최소 여유 항목 (Primary Bottleneck): ${tightest.name} · 점유율 ${peakUtilization.toFixed(1)}% (여유 마진 ${formatMargin(tightest.margin)})`
-              : `위반 항목: ${result.constraints
+              ? t.verdictPassDetail(
+                  translateConstraintName(tightest.name, lang),
+                  peakUtilization.toFixed(1),
+                  formatMargin(tightest.margin),
+                )
+              : `${t.verdictFailDetailPrefix}: ${result.constraints
                   .filter((c) => !c.pass)
-                  .map((c) => `${c.name} (${formatValue(c.actual, c.unit)} > ${formatValue(c.limit, c.unit)})`)
+                  .map(
+                    (c) =>
+                      `${translateConstraintName(c.name, lang)} (${formatValue(c.actual, c.unit, lang)} > ${formatValue(c.limit, c.unit, lang)})`,
+                  )
                   .join(' / ')}`}
           </span>
         </div>
@@ -62,28 +79,28 @@ export function ResultPanel({ result, timing, timingSource, dp }: Props) {
 
       <div className="kpi-grid">
         <div className="kpi-card">
-          <span className="kpi-label">PIXEL CLOCK</span>
+          <span className="kpi-label">{t.kpiPixelClock}</span>
           <strong className="kpi-value">{formatMHz(pclkHz)}</strong>
           <span className="kpi-sub">
-            Total {timing.hTotal}×{timing.vTotal} ({timingSource})
+            Total {timing.hTotal}×{timing.vTotal} ({displayTimingSource})
           </span>
         </div>
         <div className="kpi-card">
-          <span className="kpi-label">ACTIVE / BLANKING RATIO</span>
+          <span className="kpi-label">{t.kpiActiveBlanking}</span>
           <strong className="kpi-value">{activeRatio.toFixed(1)}% Active</strong>
           <span className="kpi-sub">
             H-Blank +{timing.hTotal - timing.hActive}px · V-Blank +{timing.vTotal - timing.vActive}lines
           </span>
         </div>
         <div className="kpi-card">
-          <span className="kpi-label">PRIMARY BOTTLENECK</span>
-          <strong className="kpi-value">{tightest.name}</strong>
+          <span className="kpi-label">{t.kpiPrimaryBottleneck}</span>
+          <strong className="kpi-value">{translateConstraintName(tightest.name, lang)}</strong>
           <span className="kpi-sub">
-            {formatValue(tightest.actual, tightest.unit)} / {formatValue(tightest.limit, tightest.unit)}
+            {formatValue(tightest.actual, tightest.unit, lang)} / {formatValue(tightest.limit, tightest.unit, lang)}
           </span>
         </div>
         <div className="kpi-card">
-          <span className="kpi-label">PEAK UTILIZATION / HEADROOM</span>
+          <span className="kpi-label">{t.kpiPeakUtilization}</span>
           <strong className="kpi-value">
             {peakUtilization.toFixed(1)}% / {formatMargin(tightest.margin)}
           </strong>
@@ -104,34 +121,34 @@ export function ResultPanel({ result, timing, timingSource, dp }: Props) {
 
       <section className="panel-section">
         <div className="section-header">
-          <h3>1. 타이밍 및 픽셀 클럭 산출 수식 (Timing &amp; Pixel Clock Derivation)</h3>
-          <span className="section-tag">{timingSource}</span>
+          <h3>{t.resultSection1Title}</h3>
+          <span className="section-tag">{displayTimingSource}</span>
         </div>
         <div className="formula-stack">
           <div className="formula-card">
             <div className="formula-card-head">
-              <strong>Total 해상도 산출 (H_total × V_total)</strong>
+              <strong>{t.totalResCardTitle}</strong>
               <span className="formula-result-pill">
                 {timing.hTotal} × {timing.vTotal}
               </span>
             </div>
             <div className="formula-grid">
-              <span className="formula-tag">적용 수식</span>
-              <code>{derivation.blankingFormula}</code>
-              <span className="formula-tag">값 대입</span>
-              <code>{derivation.blankingSubstitution}</code>
+              <span className="formula-tag">{t.tagAppliedFormula}</span>
+              <code>{translateFormulaText(derivation.blankingFormula, lang)}</code>
+              <span className="formula-tag">{t.tagValueSubstitution}</span>
+              <code>{translateFormulaText(derivation.blankingSubstitution, lang)}</code>
             </div>
           </div>
 
           <div className="formula-card">
             <div className="formula-card-head">
-              <strong>픽셀 클럭 산출 (Pixel Clock)</strong>
+              <strong>{t.pixelClockCardTitle}</strong>
               <span className="formula-result-pill">{formatMHz(pclkHz)}</span>
             </div>
             <div className="formula-grid">
-              <span className="formula-tag">적용 수식</span>
+              <span className="formula-tag">{t.tagAppliedFormula}</span>
               <code>{derivation.clockFormula}</code>
-              <span className="formula-tag">값 대입</span>
+              <span className="formula-tag">{t.tagValueSubstitution}</span>
               <code>{derivation.clockSubstitution}</code>
             </div>
           </div>
@@ -139,38 +156,37 @@ export function ResultPanel({ result, timing, timingSource, dp }: Props) {
           {symbolInfo && (
             <div className="formula-card">
               <div className="formula-card-head">
-                <strong>DisplayPort Transfer Unit (TU) 필요 심볼 슬롯 (TRM 10.1.1 Table 10.4)</strong>
+                <strong>{t.dpTuCardTitle}</strong>
                 <span className="formula-result-pill">
                   {symbolInfo.slots} / 64 slots ({symbolInfo.exact.toFixed(2)})
                 </span>
               </div>
               <div className="formula-grid">
-                <span className="formula-tag">적용 수식</span>
+                <span className="formula-tag">{t.tagAppliedFormula}</span>
                 <code>{symbolInfo.expression}</code>
-                <span className="formula-tag">값 대입</span>
+                <span className="formula-tag">{t.tagValueSubstitution}</span>
                 <code>{symbolInfo.substitution}</code>
               </div>
             </div>
           )}
 
-          {mstPbn !== undefined && mstPbnPerSlot !== undefined && mstSlots !== undefined && (
+          {mstPbn !== undefined && mstPbnPerSlot !== undefined && mstSlots !== undefined && dp && (
             <div className="formula-card">
               <div className="formula-card-head">
-                <strong>DP MST Payload Bandwidth Number (PBN) &amp; Time Slot (Table 2~4)</strong>
+                <strong>{t.dpMstPbnCardTitle}</strong>
                 <span className="formula-result-pill">
                   {mstPbn} PBN → {mstSlots} / 63 slots
                 </span>
               </div>
               <div className="formula-grid">
-                <span className="formula-tag">적용 수식</span>
+                <span className="formula-tag">{t.tagAppliedFormula}</span>
                 <code>
                   PBN = CEIL((PixelClock_Hz × BPP × 1.006 × FEC) / 6,750,000), Time_Slots = CEIL(PBN /{' '}
                   {mstPbnPerSlot})
                 </code>
-                <span className="formula-tag">값 대입</span>
+                <span className="formula-tag">{t.tagValueSubstitution}</span>
                 <code>
-                  1 Slot 당 {mstPbnPerSlot} PBN ({dp?.linkRate} × {dp?.lanes} lanes) → 스트림 요구 {mstPbn} PBN →{' '}
-                  {mstSlots} Time Slots 할당
+                  {t.dpMstPbnSubstitution(mstPbnPerSlot, dp.linkRate, dp.lanes, mstPbn, mstSlots)}
                 </code>
               </div>
             </div>
@@ -180,23 +196,29 @@ export function ResultPanel({ result, timing, timingSource, dp }: Props) {
 
       <section className="panel-section">
         <div className="section-header">
-          <h3>2. 제약 조건 적합성 매트릭스 (Constraint Compliance Matrix)</h3>
-          <span className="section-tag">총 {result.constraints.length}개 항목 검증</span>
+          <h3>{t.resultSection2Title}</h3>
+          <span className="section-tag">{t.resultSection2Tag(result.constraints.length)}</span>
         </div>
         <table className="constraints">
           <thead>
             <tr>
-              <th>검증 항목 (Constraint)</th>
-              <th>산출 요구값 (Actual)</th>
-              <th>허용 한계값 (Limit)</th>
-              <th>링크/자원 점유율</th>
-              <th>여유 마진</th>
-              <th>판정</th>
+              <th>{t.colConstraint}</th>
+              <th>{t.colActual}</th>
+              <th>{t.colLimit}</th>
+              <th>{t.colUtilization}</th>
+              <th>{t.colMargin}</th>
+              <th>{t.colVerdict}</th>
             </tr>
           </thead>
           <tbody>
             {result.constraints.map((c) => (
-              <ConstraintRow key={c.name} constraint={c} tightest={c === tightest} />
+              <ConstraintRow
+                key={c.name}
+                constraint={c}
+                tightest={c === tightest}
+                lang={lang}
+                miniBadge={t.miniBadgeBottleneck}
+              />
             ))}
           </tbody>
         </table>
@@ -204,8 +226,8 @@ export function ResultPanel({ result, timing, timingSource, dp }: Props) {
 
       <section className="panel-section">
         <div className="section-header">
-          <h3>3. 항목별 적용 수식 및 값 대입 상세 풀이 (Detailed Formula &amp; Substitution Breakdown)</h3>
-          <span className="section-tag">Step-by-Step Verification</span>
+          <h3>{t.resultSection3Title}</h3>
+          <span className="section-tag">{t.resultSection3Tag}</span>
         </div>
         <div className="formula-stack">
           {result.constraints.map((c) => {
@@ -226,47 +248,61 @@ export function ResultPanel({ result, timing, timingSource, dp }: Props) {
                     <span className={c.pass ? 'status-pill pill-pass' : 'status-pill pill-fail'}>
                       {c.pass ? 'PASS' : 'FAIL'}
                     </span>
-                    <strong>{c.name}</strong>
-                    {c === tightest && <span className="bottleneck-tag">PRIMARY BOTTLENECK</span>}
+                    <strong>{translateConstraintName(c.name, lang)}</strong>
+                    {c === tightest && <span className="bottleneck-tag">{t.primaryBottleneckBadge}</span>}
                   </div>
                   <span className="formula-result-pill">
-                    {formatValue(c.actual, c.unit)} ≤ {formatValue(c.limit, c.unit)} (점유율 {util.toFixed(1)}% · 여유{' '}
-                    {formatMargin(c.margin)})
+                    {t.formulaPillSummary(
+                      formatValue(c.actual, c.unit, lang),
+                      formatValue(c.limit, c.unit, lang),
+                      util.toFixed(1),
+                      formatMargin(c.margin),
+                    )}
                   </span>
                 </div>
                 {c.formula && (
                   <div className="formula-grid">
-                    <span className="formula-tag">판정 부등식</span>
-                    <code>{c.formula.expression}</code>
-                    <span className="formula-tag">요구값 대입</span>
-                    <code>{c.formula.actualSubstitution}</code>
-                    <span className="formula-tag">한계값 대입</span>
-                    <code>{c.formula.limitSubstitution}</code>
+                    <span className="formula-tag">{t.tagInequality}</span>
+                    <code>{translateFormulaText(c.formula.expression, lang)}</code>
+                    <span className="formula-tag">{t.tagActualSubstitution}</span>
+                    <code>{translateFormulaText(c.formula.actualSubstitution, lang)}</code>
+                    <span className="formula-tag">{t.tagLimitSubstitution}</span>
+                    <code>{translateFormulaText(c.formula.limitSubstitution, lang)}</code>
                   </div>
                 )}
               </div>
             )
           })}
         </div>
-        <p className="source-note">스펙 근거: {tightest.source}</p>
+        <p className="source-note">{t.specBasisNote(t.specSource)}</p>
       </section>
     </div>
   )
 }
 
-function ConstraintRow({ constraint: c, tightest }: { constraint: ConstraintResult; tightest: boolean }) {
+function ConstraintRow({
+  constraint: c,
+  tightest,
+  lang,
+  miniBadge,
+}: {
+  constraint: ConstraintResult
+  tightest: boolean
+  lang: LangCode
+  miniBadge: string
+}) {
   const className = !c.pass ? 'row-fail' : tightest ? 'row-tightest' : undefined
   const util = (c.actual / c.limit) * 100
   return (
     <tr className={className}>
       <td>
         <div className="cell-title">
-          <span>{c.name}</span>
-          {tightest && <span className="mini-badge">병목</span>}
+          <span>{translateConstraintName(c.name, lang)}</span>
+          {tightest && <span className="mini-badge">{miniBadge}</span>}
         </div>
       </td>
-      <td>{formatValue(c.actual, c.unit)}</td>
-      <td>{formatValue(c.limit, c.unit)}</td>
+      <td>{formatValue(c.actual, c.unit, lang)}</td>
+      <td>{formatValue(c.limit, c.unit, lang)}</td>
       <td className="util-cell">
         <div className="table-util-wrap">
           <div className="util-bar-track">

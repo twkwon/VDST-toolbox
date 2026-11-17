@@ -3,6 +3,7 @@ import { resolveTiming, type ResolvedTiming } from '../core/timing'
 import { verify } from '../core/verify'
 import { CEA861_MODES } from '../data/timings'
 import { parsePositive, parsePositiveInt } from './form'
+import { useI18n } from './i18n'
 import { ResultPanel } from './ResultPanel'
 import { dpOptionsFor, dsiOptionsFor, hdmiOptionsFor, type Settings } from './settings'
 import { FallbackSelect, OptionsFieldset, TargetFieldset } from './SettingsFields'
@@ -13,6 +14,7 @@ type Props = {
 }
 
 export function VerifyPage({ settings, onSettingsChange }: Props) {
+  const { t } = useI18n()
   const [widthText, setWidthText] = useState('3840')
   const [heightText, setHeightText] = useState('2160')
   const [fpsText, setFpsText] = useState('60')
@@ -24,9 +26,9 @@ export function VerifyPage({ settings, onSettingsChange }: Props) {
   const height = parsePositiveInt(heightText)
   const fps = parsePositive(fpsText)
   const errors: string[] = []
-  if (!width) errors.push('수평 해상도(H_active)는 양의 정수여야 합니다.')
-  if (!height) errors.push('수직 해상도(V_active)는 양의 정수여야 합니다.')
-  if (!fps) errors.push('주사율(Frame Rate)은 0보다 커야 합니다.')
+  if (!width) errors.push(t.errWidthPositiveInt)
+  if (!height) errors.push(t.errHeightPositiveInt)
+  if (!fps) errors.push(t.errFpsPositive)
 
   const resolved: ResolvedTiming | undefined =
     width && height && fps ? resolveTiming({ hActive: width, vActive: height, fps }, settings.fallback) : undefined
@@ -36,10 +38,10 @@ export function VerifyPage({ settings, onSettingsChange }: Props) {
   if (manual && width && height && fps) {
     const hTotal = parsePositiveInt(hTotalText)
     const vTotal = parsePositiveInt(vTotalText)
-    if (!hTotal || hTotal < width) errors.push('H_total은 H_active 이상의 정수여야 합니다.')
-    if (!vTotal || vTotal < height) errors.push('V_total은 V_active 이상의 정수여야 합니다.')
+    if (!hTotal || hTotal < width) errors.push(t.errHTotalMin)
+    if (!vTotal || vTotal < height) errors.push(t.errVTotalMin)
     timing = hTotal && vTotal ? { hActive: width, vActive: height, hTotal, vTotal, fps } : undefined
-    timingSource = '사용자 정의 타이밍 (Manual H_total / V_total)'
+    timingSource = t.manualTimingSource
   }
 
   const dpOptions = dpOptionsFor(settings)
@@ -78,11 +80,11 @@ export function VerifyPage({ settings, onSettingsChange }: Props) {
         <TargetFieldset settings={settings} onChange={onSettingsChange} />
 
         <fieldset className="control-group">
-          <legend>2. 비디오 타이밍 파라미터 (Video Timing)</legend>
+          <legend>{t.verifyTimingLegend}</legend>
           <label>
-            CTA-861 표준 프리셋 (Standard VIC Modes)
+            {t.ctaPresetLabel}
             <select value="" onChange={(e) => selectPreset(e.target.value)}>
-              <option value="">프리셋 선택 (수동 입력 중)…</option>
+              <option value="">{t.ctaPresetPlaceholder}</option>
               {CEA861_MODES.map((m, i) => (
                 <option key={m.vic} value={i}>
                   {m.hActive}×{m.vActive} @ {m.fps}Hz — VIC {m.vic} (Total {m.hTotal}×{m.vTotal})
@@ -107,11 +109,11 @@ export function VerifyPage({ settings, onSettingsChange }: Props) {
         </fieldset>
 
         <fieldset className="control-group">
-          <legend>3. 블랭킹 산출 규격 (Blanking &amp; Total Timing)</legend>
+          <legend>{t.verifyBlankingLegend}</legend>
           <FallbackSelect settings={settings} onChange={onSettingsChange} disabled={manual} />
           <label className="check">
             <input type="checkbox" checked={manual} onChange={(e) => toggleManual(e.target.checked)} />
-            패널 규격서 H_total / V_total 직접 지정 (Manual Override)
+            {t.manualOverrideLabel}
           </label>
           {manual && (
             <div className="row">
